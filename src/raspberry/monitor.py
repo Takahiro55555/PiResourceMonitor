@@ -2,7 +2,7 @@ import datetime
 import time
 import subprocess
 import sys
-import signal
+import threading
 
 import requests
 
@@ -19,7 +19,7 @@ class Monitor:
         self._memory_usage = -1
         self._swap_usage = -1
     
-    def send(self, arg1, arg2):
+    def send(self):
         self.get_all_stat()
         data = {
             "host_name": HOST_NAME,
@@ -57,6 +57,9 @@ class Monitor:
         self._time_stamp = now.strftime("%Y/%m/%d %H:%M:%S.%f")
 
     def get_cpu_usage(self):
+        """
+        Reference: http://my-web-site.iobb.net/~yuki/2017-10/raspberry-pi/cpustat/
+        """
         tck_list_pre = self._tck_list
         tck_list_now = self.get_cpu_stat()
         self._tck_list = tck_list_now
@@ -72,6 +75,9 @@ class Monitor:
         
     @staticmethod
     def get_cpu_stat():
+        """
+        Reference: http://my-web-site.iobb.net/~yuki/2017-10/raspberry-pi/cpustat/
+        """
         cmd = 'cat /proc/stat | grep cpu'
         rstd_out ,_ = Monitor.exec_command(cmd)
         line_list = rstd_out.splitlines()
@@ -100,10 +106,19 @@ class Monitor:
             # 時々このエラーが発生するため追加
             print("Error, 送信失敗, %s" % data["time_stamp"])
 
+    @staticmethod
+    def scheduler(interval, f):
+        """
+        Reference: https://qiita.com/montblanc18/items/05715730d99d450fd0d3
+        """
+        base_time = time.time()
+        next_time = 0
+        while True:
+            t = threading.Thread(target = f)
+            t.start()
+            next_time = ((base_time - time.time()) % interval) or interval
+            time.sleep(next_time)
+
 if __name__ == "__main__":
     monitor = Monitor()
-    #signal.signal(signal.SIGALRM, monitor.send)
-    #signal.setitimer(signal.ITIMER_REAL, 1, SAMPLING_INTERVAL_SEC)
-    while True:
-        monitor.send(1, 2)
-        #time.sleep(1)
+    monitor.scheduler(SAMPLING_INTERVAL_SEC, monitor.send)
